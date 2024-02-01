@@ -1,0 +1,26 @@
+python := "./.venv/bin/python3"
+
+setup:
+	python3 -m venv .venv
+	{{ python }} -m pip install -r requirements.txt
+
+run *ARGS:
+	{{ python }} ttv.py {{ARGS}}
+
+pip *ARGS:
+	{{ python }} -m pip {{ARGS}}
+	{{ python }} -m pip freeze > requirements.txt
+
+test *ARGS:
+	{{ python }} -m pytest {{ARGS}}
+
+clean:
+	rm -rf .pytest_cache .venv */__pycache__
+
+install_dir := env_var_or_default('INSTALL_DIR', env_var('HOME')/'.local/bin')
+
+install:
+	cp ttv.py "{{ install_dir }}/ttv"
+
+uninstall:
+	rm -f "{{ install_dir }}/ttv"
