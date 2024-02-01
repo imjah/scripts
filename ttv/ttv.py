@@ -6,70 +6,44 @@ import threading
 
 config = {
     'dir': os.environ.get('XDG_CONFIG_DIR/ttv', f'{os.environ.get("HOME")}/.config/ttv'),
-    'icons': {
-        'online': 'U',
-        'offline': 'D'
-    },
-    'channels': []
+    'safetwitch_api': 'https://stbackend.drgns.space/api'
 }
 
-class Channel:
+class User:
     def __init__(self, name):
         self.name = name
-        self.live = False
+        self.data = None
 
-    def get_status(self):
-        self.live = self._get_status()
+    def fetch(self):
+        response = requests.get(f'{config["safetwitch_api"]}/users/{self.name}')
 
-    def _get_status(self):
-        response = requests.get(f'https://twitch.tv/{self.name}')
+        if response.status_code == 200:
+            self.data = response.json()['data']
 
-        if response.status_code != 200:
-            return False
+class Users:
+    def __init__(self):
+        self._read_users()
 
-        if '"isLiveBroadcast":true' not in response.text:
-            return False
+    def fetch(self):
+        threads = [threading.Thread(target=user.fetch) for user in self.data]
 
-        return True
-
-class Channels:
-    def __init__(self, names):
-        self._channels = []
-
-        for name in names:
-            self._channels.append(
-                Channel(name)
-            )
-
-    def get_status(self):
-        threads = []
-
-        for channel in self._channels:
-            threads.append(
-                threading.Thread(target=channel.get_status)
-            )
-
-            threads[-1].start()
+        for thread in threads:
+            thread.start()
 
         for thread in threads:
             thread.join()
 
-        return self._channels
+    def _read_users(self):
+        self.data = []
 
-def read_config():
-    with open(f'{config["dir"]}/channels') as channels:
-        for channel in sorted(channels):
-            config['channels'].append(channel.strip())
+        with open(f'{config["dir"]}/channels') as file:
+            for line in sorted(file):
+                self.data.append(User(line.strip()))
 
 if __name__ == '__main__':
-    read_config()
+    users = Users()
+    users.fetch()
 
-    channels = Channels(config['channels']).get_status()
-
-    for channel in sorted(channels, key=lambda k: k.live, reverse=True):
-        icon = config['icons']['offline']
-
-        if channel.live:
-            icon = config['icons']['online']
-
-        print(f'{icon} {channel.name}')
+    for user in users.data:
+        if (user.data['isLive']):
+            print(f'{user.name} {user.data["stream"]["topic"]} {user.data["stream"]["viewers"]}')

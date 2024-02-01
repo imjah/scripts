@@ -1,13 +1,11 @@
 import ttv
 
-def test_is_live():
-    assert ttv.Channel('kapitanbombatv')._get_status()
+def test_user_is_live():
+    user = ttv.User('kapitanbombatv')
 
-def test_is_not_live():
-    assert not ttv.Channel('imjah___')._get_status()
+    assert user.data['isLive']
 
-def test_channels_get_status():
-    channels = ttv.Channels(['kapitanbombatv', 'imjah___']).get_status()
+def test_user_is_not_live():
+    user = ttv.User('imjah___')
 
-    assert channels[0].live
-    assert channels[1].live == False
+    assert user.data['isLive'] == False
