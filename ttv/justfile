@@ -1,26 +1,35 @@
-python := "./.venv/bin/python3"
+main         := "ttv.py"
+venv         := "./.venv"
+vbin         := venv / "bin"
+vpip         := vbin / "pip"
+vpython      := vbin / "python"
+vpytest      := vbin / "pytest"
+vpyinstaller := vbin / "pyinstaller"
 
 setup:
-	python3 -m venv .venv
-	{{ python }} -m pip install -r requirements.txt
+	python3 -m venv {{venv}}
+	{{vpip}} install -r requirements.txt
 
-run *ARGS:
-	{{ python }} ttv.py {{ARGS}}
-
-pip *ARGS:
-	{{ python }} -m pip {{ARGS}}
-	{{ python }} -m pip freeze > requirements.txt
-
-test *ARGS:
-	{{ python }} -m pytest {{ARGS}}
+build:
+	{{vpyinstaller}} --onefile {{main}}
 
 clean:
-	rm -rf .pytest_cache .venv */__pycache__
+	rm -rf *.spec .pytest_cache/ {{venv}} __pycache__/ build/ dist/
 
-install_dir := env_var_or_default('INSTALL_DIR', env_var('HOME')/'.local/bin')
+pip *ARGS:
+	{{vpip}} {{ARGS}} && {{vpip}} freeze > requirements.txt
+
+python *ARGS:
+	{{vpython}} {{ARGS}}
+
+run *ARGS:
+	{{vpython}} {{main}} {{ARGS}}
+
+test *ARGS:
+	{{vpytest}} {{ARGS}}
 
 install:
-	cp ttv.py "{{ install_dir }}/ttv"
+	cp -t "{{executable_directory()}}" "dist/{{without_extension(main)}}"
 
 uninstall:
-	rm -f "{{ install_dir }}/ttv"
+	rm -f "{{executable_directory() / without_extension(main)}}"
