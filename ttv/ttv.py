@@ -14,6 +14,14 @@ class User:
         self.topic   = ''
         self.viewers = 0
 
+    def __str__(self):
+        def fix(s: str):
+            empty_cells = 24 - len(s)
+
+            return s + empty_cells * ' ' if empty_cells > 0 else s[:-2] + '..'
+
+        return f'{fix(self.name)} | {fix(self.topic)} | {self.viewers}'
+
     def fetch(self):
         response = requests.get(f'{config["safetwitch_api"]}/users/{self.name}')
 
@@ -62,4 +70,4 @@ if __name__ == '__main__':
     users.sort()
 
     for user in users.online():
-        print(f'{user.name} {user.topic} {user.viewers}')
+        print(user)
