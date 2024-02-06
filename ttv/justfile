@@ -1,4 +1,5 @@
 main         := "ttv.py"
+menu         := "ttvmenu"
 venv         := "./.venv"
 vbin         := venv / "bin"
 vpip         := vbin / "pip"
@@ -29,7 +30,8 @@ test *ARGS:
 	{{vpytest}} {{ARGS}}
 
 install:
-	cp -t "{{executable_directory()}}" "dist/{{without_extension(main)}}"
+	cp -t "{{executable_directory()}}" "dist/{{without_extension(main)}}" {{menu}}
 
 uninstall:
-	rm -f "{{executable_directory() / without_extension(main)}}"
+	rm -f "{{executable_directory() / without_extension(main)}}" \
+	      "{{executable_directory() / menu}}"
