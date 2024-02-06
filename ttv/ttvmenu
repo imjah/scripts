@@ -1,0 +1,5 @@
+#!/bin/bash
+
+USER="$(ttv | dmenu $@ | cut -d " " -f 1)"
+
+[ "$USER" ] && mpv "https://twitch.tv/$USER"
