@@ -60,9 +60,12 @@ class Users:
     def _read_users(self):
         self.data = []
 
-        with open(f'{config["dir"]}/channels') as file:
-            for line in file:
-                self.data.append(User(line.strip()))
+        try:
+            with open(f'{config["dir"]}/users') as file:
+                for line in file:
+                    self.data.append(User(line.strip()))
+        except FileNotFoundError:
+            return
 
 if __name__ == '__main__':
     users = Users()
