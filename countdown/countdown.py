@@ -4,69 +4,67 @@ import os
 import sys
 import time
 
-def countdown(seconds: int, filename=None):
-    total = seconds
+config = {
+    'output': os.getenv('OUTPUT', None)
+}
 
-    while total > 0:
-        timer = f"{total}s" if total < 60 else f"{int(total / 60)}m"
+def countdown(to: int):
+    total = to
 
-        try:
-            with open(filename, "w") as file:
-                file.write(timer)
-        except (TypeError, FileNotFoundError):
-            print(timer)
+    for unit, interval in {'h': 3600, 'm': 60, 's': 1}.items():
+        timer = int(total / interval)
 
-        time.sleep(1)
+        if timer < 2 and unit != 's':
+            continue
 
-        total -= 1
+        while timer:
+            display(f"{timer}{unit}")
+            time.sleep(interval)
+            total -= interval
+            timer = int(total / interval)
 
-def parse_seconds(t: str):
-    multiplier = 1
+    os.system("mpv /usr/share/sounds/budgie/default/alerts/bark.ogg")
 
+def display(v: str):
     try:
-        seconds = int(t)
+        with open(config['output'], 'w') as file:
+            file.write(v)
+    except (TypeError, FileNotFoundError):
+        print(v)
+
+def parse_time(t: str) -> int:
+    try:
+        return int(t)
     except ValueError:
         try:
             match t[-1]:
+                case "s":
+                    return int(t[:-1])
                 case "m":
-                    multiplier = 60
+                    return int(t[:-1]) * 60
                 case "h":
-                    multiplier = 3600
-        except IndexError:
-            return 0
-
-        try:
-            seconds = int(t[:-1])
+                    return int(t[:-1]) * 3600
         except (IndexError, ValueError):
             return 0
 
-    return seconds * multiplier
-
-def playsound():
-    os.system("mpv /usr/share/sounds/budgie/default/alerts/bark.ogg")
+def remove_output():
+    try:
+        os.remove(config['output'])
+    except (TypeError, OSError) as e:
+        pass
 
 def main():
     try:
-        time = parse_seconds(sys.argv[1])
+        to = parse_time(sys.argv[1])
     except IndexError:
-        sys.exit("No time given")
+        sys.exit(f"Usage: {os.path.basename(sys.argv[0])} <time>")
 
     try:
-        filename = sys.argv[2]
-    except IndexError:
-        filename = None
-
-    try:
-        while time:
-            countdown(time, filename)
-            playsound()
+        while to:
+            countdown(to)
     except KeyboardInterrupt:
+        remove_output()
         print()
-
-        try:
-            os.remove(filename)
-        except (TypeError, OSError) as e:
-            pass
 
 if __name__ == "__main__":
     main()
