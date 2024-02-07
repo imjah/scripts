@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import requests
 import threading
@@ -13,14 +14,15 @@ class User:
         self.live    = False
         self.topic   = ''
         self.viewers = 0
+        self.elapsed = ''
 
     def __str__(self):
-        def fix(s: str):
-            empty_cells = 24 - len(s)
-
-            return s + empty_cells * ' ' if empty_cells > 0 else s[:-2] + '..'
-
-        return f'{fix(self.name)} | {fix(self.topic)} | {self.viewers}'
+        return '{:24} | {:24} | {:<12} | {}'.format(
+            self.name,
+            self.topic,
+            self.viewers,
+            self.elapsed
+        )
 
     def fetch(self):
         response = requests.get(f'{config["safetwitch_api"]}/users/{self.name}')
@@ -34,8 +36,18 @@ class User:
             self.live    = data['isLive']
             self.topic   = data['stream']['topic']
             self.viewers = data['stream']['viewers']
+            self.elapsed = self._parse_elapsed(data['stream']['startedAt'])
         except KeyError:
             return
+
+    def _parse_elapsed(self, time: str):
+        delta = datetime.utcnow() - datetime.strptime(time, '%Y-%m-%dT%H:%M:%SZ')
+
+        for unit, interval in {'h': 3600, 'm': 60}.items():
+            time = int(delta.total_seconds() / interval)
+
+            if time:
+                return f'{time}{unit}'
 
 class Users:
     def __init__(self):
