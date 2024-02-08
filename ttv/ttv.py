@@ -5,10 +5,11 @@ import threading
 
 config = {
     'dir': os.environ.get('XDG_CONFIG_DIR/ttv', f'{os.environ.get("HOME")}/.config/ttv'),
-    'safetwitch_api': 'https://stbackend.drgns.space/api'
+    'safetwitch_api': 'https://stbackend.drgns.space/api',
+    'piped_api': 'https://pipedapi.kavin.rocks'
 }
 
-class User:
+class TwitchUser:
     def __init__(self, name):
         self.name    = name
         self.live    = False
@@ -49,6 +50,38 @@ class User:
             if time:
                 return f'{time}{unit}'
 
+class YouTubeUser:
+    def __init__(self, id):
+        self.live    = False
+        self.topic   = ''
+        self.viewers = 0
+        self.id      = id
+        self.streams = []
+
+    def __str__(self):
+        out = ''
+
+        for stream in self.streams:
+            out += '{:24} | {:24} | {:<12}\n'.format(
+                stream['url'][:24],
+                stream['title'][:24],
+                stream['views']
+            )
+
+        return out[:-1]
+
+    def fetch(self):
+        data = '{"id": "%i", "contentFilters": ["livestreams"]}'.replace('%i', self.id)
+        response = requests.get(f'{config["piped_api"]}/channels/tabs?data={data}')
+
+        if response.status_code != 200:
+            return
+
+        for stream in response.json()['content']:
+            if stream['duration'] == -1:
+                self.live = True
+                self.streams.append(stream)
+
 class Users:
     def __init__(self):
         self._read_users()
@@ -75,7 +108,14 @@ class Users:
         try:
             with open(f'{config["dir"]}/users') as file:
                 for line in file:
-                    self.data.append(User(line.strip()))
+                    self.data.append(TwitchUser(line.strip()))
+        except FileNotFoundError:
+            return
+
+        try:
+            with open(f'{config["dir"]}/youtube-users') as file:
+                for line in file:
+                    self.data.append(YouTubeUser(line.strip()))
         except FileNotFoundError:
             return
 

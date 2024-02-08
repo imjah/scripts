@@ -2,4 +2,10 @@
 
 USER="$(ttv | dmenu $@ | cut -d " " -f 1)"
 
-[ "$USER" ] && mpv "https://twitch.tv/$USER"
+if [[ "$USER" ]]; then
+	if [[ "$USER" =~ "/watch" ]]; then
+		mpv "https://youtube.com$USER"
+	else
+		mpv "https://twitch.tv/$USER"
+	fi
+fi
