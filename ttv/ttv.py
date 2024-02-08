@@ -1,13 +1,23 @@
 from datetime import datetime
 import os
 import requests
+import sys
 import threading
+import yaml
 
 config = {
-    'dir': os.environ.get('XDG_CONFIG_DIR/ttv', f'{os.environ.get("HOME")}/.config/ttv'),
-    'safetwitch_api': 'https://stbackend.drgns.space/api',
-    'piped_api': 'https://pipedapi.kavin.rocks'
+    'dir': f'{os.environ.get("XDG_CONFIG_DIR", os.environ.get("HOME") + "/.config")}/ttv',
+    'piped-api': 'https://pipedapi.kavin.rocks',
+    'safetwitch-api': 'https://stbackend.drgns.space/api',
+    'twitch': [],
+    'youtube': []
 }
+
+try:
+    with open(f'{config["dir"]}/config.yml') as file:
+        config = {**config, **yaml.safe_load(file)}
+except Exception as e:
+    sys.exit(f'Config error: {e}')
 
 class TwitchUser:
     def __init__(self, name):
@@ -26,7 +36,7 @@ class TwitchUser:
         )
 
     def fetch(self):
-        response = requests.get(f'{config["safetwitch_api"]}/users/{self.name}')
+        response = requests.get(f'{config["safetwitch-api"]}/users/{self.name}')
 
         if response.status_code != 200:
             return
@@ -72,7 +82,7 @@ class YouTubeUser:
 
     def fetch(self):
         data = '{"id": "%i", "contentFilters": ["livestreams"]}'.replace('%i', self.id)
-        response = requests.get(f'{config["piped_api"]}/channels/tabs?data={data}')
+        response = requests.get(f'{config["piped-api"]}/channels/tabs?data={data}')
 
         if response.status_code != 200:
             return
@@ -84,7 +94,8 @@ class YouTubeUser:
 
 class Users:
     def __init__(self):
-        self._read_users()
+        self.data  = [TwitchUser(c)  for c in config['twitch']]
+        self.data += [YouTubeUser(c) for c in config['youtube']]
 
     def fetch(self):
         threads = [threading.Thread(target=user.fetch) for user in self.data]
@@ -101,23 +112,6 @@ class Users:
 
     def online(self):
         return filter(lambda k: k.live, self.data)
-
-    def _read_users(self):
-        self.data = []
-
-        try:
-            with open(f'{config["dir"]}/users') as file:
-                for line in file:
-                    self.data.append(TwitchUser(line.strip()))
-        except FileNotFoundError:
-            return
-
-        try:
-            with open(f'{config["dir"]}/youtube-users') as file:
-                for line in file:
-                    self.data.append(YouTubeUser(line.strip()))
-        except FileNotFoundError:
-            return
 
 if __name__ == '__main__':
     users = Users()

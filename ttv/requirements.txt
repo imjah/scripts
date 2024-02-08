@@ -12,6 +12,7 @@ pycparser==2.21
 pyinstaller==6.3.0
 pyinstaller-hooks-contrib==2024.0
 pytest==8.0.0
+PyYAML==6.0.1
 requests==2.31.0
 tomli==2.0.1
 urllib3==2.2.0
