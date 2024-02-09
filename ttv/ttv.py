@@ -1,104 +1,85 @@
 from datetime import datetime
 import os
+import re
 import requests
 import sys
 import threading
 import yaml
 
-config = {
-    'dir': f'{os.environ.get("XDG_CONFIG_DIR", os.environ.get("HOME") + "/.config")}/ttv',
-    'piped-api': 'https://pipedapi.kavin.rocks',
-    'safetwitch-api': 'https://stbackend.drgns.space/api',
-    'twitch': [],
-    'youtube': []
-}
+# def _parse_elapsed(self, time: str):
+#     delta = datetime.utcnow() - datetime.strptime(time, '%Y-%m-%dT%H:%M:%SZ')
 
-try:
-    with open(f'{config["dir"]}/config.yml') as file:
-        config = {**config, **yaml.safe_load(file)}
-except Exception as e:
-    sys.exit(f'Config error: {e}')
+#     for unit, interval in {'h': 3600, 'm': 60}.items():
+#         time = int(delta.total_seconds() / interval)
 
-class TwitchUser:
-    def __init__(self, name):
-        self.name    = name
-        self.live    = False
-        self.topic   = ''
-        self.viewers = 0
-        self.elapsed = ''
+#         if time:
+#             return f'{time}{unit}'
+
+def remove_emojis(s):
+    return re.sub("["u"\U0001F600-\U0001F64F"u"\U0001F300-\U0001F5FF""]+", '', s).strip()
+
+class Stream:
+    def __init__(self, **kwargs):
+        self.url     = kwargs.get('url'    , 'unknown')
+        self.user    = kwargs.get('user'   , 'unknown')
+        self.topic   = kwargs.get('topic'  , 'unknown')
+        self.viewers = kwargs.get('viewers', 'unknown')
+        self.elapsed = kwargs.get('elapsed', 'unknown')
 
     def __str__(self):
-        return '{:24} | {:24} | {:<12} | {}'.format(
-            self.name,
-            self.topic,
-            self.viewers,
-            self.elapsed
+        return '{:24}  {:48}  {:8}  {:8}  {}'.format(
+            self.user[:24],
+            remove_emojis(self.topic)[:48],
+            self.viewers[:8],
+            self.elapsed[:8],
+            self.url
         )
 
+class ChannelTwitch:
+    def __init__(self, id, config):
+        self.id      = id
+        self.config  = config
+        self.streams = []
+
     def fetch(self):
-        response = requests.get(f'{config["safetwitch-api"]}/users/{self.name}')
-
-        if response.status_code != 200:
-            return
-
-        data = response.json()['data']
+        d = requests.get(f'{config["safetwitch"]}/users/{self.id}').json()
 
         try:
-            self.live    = data['isLive']
-            self.topic   = data['stream']['topic']
-            self.viewers = data['stream']['viewers']
-            self.elapsed = self._parse_elapsed(data['stream']['startedAt'])
+            self.streams.append(Stream(
+                url=f'https://twitch.tv/{self.id}',
+                user=d['data']['username'],
+                topic=d['data']['stream']['topic'],
+                viewers=str(d['data']['stream']['viewers'])
+            ))
         except KeyError:
             return
 
-    def _parse_elapsed(self, time: str):
-        delta = datetime.utcnow() - datetime.strptime(time, '%Y-%m-%dT%H:%M:%SZ')
-
-        for unit, interval in {'h': 3600, 'm': 60}.items():
-            time = int(delta.total_seconds() / interval)
-
-            if time:
-                return f'{time}{unit}'
-
-class YouTubeUser:
-    def __init__(self, id):
-        self.live    = False
-        self.topic   = ''
-        self.viewers = 0
+class ChannelYoutube:
+    def __init__(self, id, config):
         self.id      = id
+        self.config  = config
         self.streams = []
 
-    def __str__(self):
-        out = ''
+    def fetch(self):
+        p = '{"id":"%i","contentFilters":["livestreams"]}'.replace('%i', self.id)
+        d = requests.get(f'{config["piped"]}/channels/tabs?data={p}').json()
 
-        for stream in self.streams:
-            out += '{:24} | {:24} | {:<12}\n'.format(
-                stream['url'][:24],
-                stream['title'][:24],
-                stream['views']
-            )
+        for c in d['content']:
+            if c['duration'] == -1:
+                self.streams.append(Stream(
+                    url=f'https://youtube.com{c["url"]}',
+                    user=c['uploaderName'],
+                    topic=c['title'],
+                    viewers=str(c['views'])
+                ))
 
-        return out[:-1]
+class Channels:
+    def __init__(self, config):
+        self.data = [ChannelTwitch(i, config) for i in config['twitch']]
+        self.data += [ChannelYoutube(i, config) for i in config['youtube']]
 
     def fetch(self):
-        data = '{"id":"%i","contentFilters":["livestreams"]}'.replace('%i', self.id)
-        response = requests.get(f'{config["piped-api"]}/channels/tabs?data={data}')
-
-        if response.status_code != 200:
-            return
-
-        for stream in response.json()['content']:
-            if stream['duration'] == -1:
-                self.live = True
-                self.streams.append(stream)
-
-class Users:
-    def __init__(self):
-        self.data  = [TwitchUser(c)  for c in config['twitch']]
-        self.data += [YouTubeUser(c) for c in config['youtube']]
-
-    def fetch(self):
-        threads = [threading.Thread(target=user.fetch) for user in self.data]
+        threads = [threading.Thread(target=d.fetch) for d in self.data]
 
         for thread in threads:
             thread.start()
@@ -106,17 +87,39 @@ class Users:
         for thread in threads:
             thread.join()
 
-    def sort(self):
-        self.data.sort(key=lambda k: k.viewers, reverse=True)
-        self.data.sort(key=lambda k: k.topic)
+    def streams(self):
+        streams = []
 
-    def online(self):
-        return filter(lambda k: k.live, self.data)
+        for channel in self.data:
+            streams += channel.streams
+
+        return streams
+
+    def sorted_streams(self):
+        streams = self.streams()
+
+        streams.sort(key=lambda k: k.viewers, reverse=True)
+        streams.sort(key=lambda k: k.topic)
+
+        return streams
 
 if __name__ == '__main__':
-    users = Users()
-    users.fetch()
-    users.sort()
+    config = {
+        'dir': f'{os.environ.get("XDG_CONFIG_DIR", os.environ.get("HOME") + "/.config")}/ttv',
+        'piped': 'https://pipedapi.kavin.rocks',
+        'safetwitch': 'https://stbackend.drgns.space/api',
+        'twitch': [],
+        'youtube': []
+    }
 
-    for user in users.online():
-        print(user)
+    try:
+        with open(f'{config["dir"]}/config.yml') as file:
+            config = {**config, **yaml.safe_load(file)}
+    except Exception as e:
+        sys.exit(f'Config error: {e}')
+
+    channels = Channels(config)
+    channels.fetch()
+
+    for stream in channels.sorted_streams():
+        print(stream)
