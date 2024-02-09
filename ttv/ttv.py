@@ -81,7 +81,7 @@ class YouTubeUser:
         return out[:-1]
 
     def fetch(self):
-        data = '{"id": "%i", "contentFilters": ["livestreams"]}'.replace('%i', self.id)
+        data = '{"id":"%i","contentFilters":["livestreams"]}'.replace('%i', self.id)
         response = requests.get(f'{config["piped-api"]}/channels/tabs?data={data}')
 
         if response.status_code != 200:
