@@ -6,14 +6,17 @@ import sys
 import threading
 import yaml
 
-# def _parse_elapsed(self, time: str):
-#     delta = datetime.utcnow() - datetime.strptime(time, '%Y-%m-%dT%H:%M:%SZ')
+def td(time: str, format: str = '%Y-%m-%dT%H:%M:%SZ') -> str:
+    """Time diff from UTC now in seconds, minutes or hours"""
+    diff = (datetime.utcnow() - datetime.strptime(time, format)).total_seconds()
 
-#     for unit, interval in {'h': 3600, 'm': 60}.items():
-#         time = int(delta.total_seconds() / interval)
+    for unit, divider in {'h': 3600, 'm': 60, 's': 1}.items():
+        time = round(diff / divider)
 
-#         if time:
-#             return f'{time}{unit}'
+        if time != 0:
+            return f'{time}{unit}'
+
+    return '0s'
 
 def remove_emojis(s):
     return re.sub("["u"\U0001F600-\U0001F64F"u"\U0001F300-\U0001F5FF""]+", '', s).strip()
@@ -29,7 +32,7 @@ class Stream:
     def __str__(self):
         return '{:24}  {:48}  {:8}  {:8}  {}'.format(
             self.user[:24],
-            remove_emojis(self.topic)[:48],
+            self.topic[:48],
             self.viewers[:8],
             self.elapsed[:8],
             self.url
@@ -49,7 +52,8 @@ class ChannelTwitch:
                 url=f'https://twitch.tv/{self.id}',
                 user=d['data']['username'],
                 topic=d['data']['stream']['topic'],
-                viewers=str(d['data']['stream']['viewers'])
+                viewers=str(d['data']['stream']['viewers']),
+                elapsed=td(d['data']['stream']['startedAt'])
             ))
         except KeyError:
             return
@@ -69,7 +73,7 @@ class ChannelYoutube:
                 self.streams.append(Stream(
                     url=f'https://youtube.com{c["url"]}',
                     user=c['uploaderName'],
-                    topic=c['title'],
+                    topic=remove_emojis(c['title']),
                     viewers=str(c['views'])
                 ))
 
