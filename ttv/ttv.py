@@ -45,7 +45,7 @@ class ChannelTwitch:
         self.streams = []
 
     def fetch(self):
-        d = requests.get(f'{config["safetwitch"]}/users/{self.id}').json()
+        d = requests.get(f'{config["safetwitch"]}/api/users/{self.id}').json()
 
         try:
             self.streams.append(Stream(
@@ -79,11 +79,11 @@ class ChannelYoutube:
 
 class Channels:
     def __init__(self, config):
-        self.data = [ChannelTwitch(i, config) for i in config['twitch']]
-        self.data += [ChannelYoutube(i, config) for i in config['youtube']]
+        self.channels = [ChannelTwitch(i, config) for i in config['twitch']]
+        self.channels += [ChannelYoutube(i, config) for i in config['youtube']]
 
     def fetch(self):
-        threads = [threading.Thread(target=d.fetch) for d in self.data]
+        threads = [threading.Thread(target=c.fetch) for c in self.channels]
 
         for thread in threads:
             thread.start()
@@ -92,12 +92,7 @@ class Channels:
             thread.join()
 
     def streams(self):
-        streams = []
-
-        for channel in self.data:
-            streams += channel.streams
-
-        return streams
+        return [stream for channel in self.channels for stream in channel.streams]
 
     def sorted_streams(self):
         streams = self.streams()
@@ -111,7 +106,7 @@ if __name__ == '__main__':
     config = {
         'dir': f'{os.environ.get("XDG_CONFIG_DIR", os.environ.get("HOME") + "/.config")}/ttv',
         'piped': 'https://pipedapi.kavin.rocks',
-        'safetwitch': 'https://stbackend.drgns.space/api',
+        'safetwitch': 'https://stbackend.drgns.space',
         'twitch': [],
         'youtube': []
     }
