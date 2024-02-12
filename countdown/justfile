@@ -1,7 +1,7 @@
 python := "./.venv/bin/python"
 
 setup:
-	python -m venv .venv
+	python3 -m venv .venv
 	{{ python }} -m pip install -r requirements.txt
 
 pip *ARGS:

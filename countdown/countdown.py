@@ -1,39 +1,32 @@
 #!/usr/bin/python3
 
+import asyncio
 import os
 import signal
 import sys
-import time
 
 config = {
     'output': os.getenv('OUTPUT', None)
 }
 
-def countdown(to: int):
+async def countdown(to: int):
     total = to
 
     for unit, interval in {'h': 3600, 'm': 60, 's': 1}.items():
-        timer = int(total / interval)
-
-        if timer < 2 and unit != 's':
-            continue
-
-        while timer:
-            display(f"{timer}{unit}")
-            time.sleep(interval)
+        while total > interval or (total == 1 and unit == 's'):
+            sleep = asyncio.create_task(asyncio.sleep(interval))
+            display(f'{total // interval}{unit}')
             total -= interval
-            timer = int(total / interval)
+            await sleep
 
-    os.system("mpv /usr/share/sounds/budgie/default/alerts/bark.ogg")
-
-def display(v: str):
+def display(s: str):
     try:
         with open(config['output'], 'w') as file:
-            file.write(v)
+            file.write(s)
     except (TypeError, FileNotFoundError):
-        print(v)
+        print(s)
 
-def parse_time(t: str) -> int:
+def parse_seconds(t: str) -> int:
     try:
         return int(t)
     except ValueError:
@@ -48,26 +41,29 @@ def parse_time(t: str) -> int:
         except (IndexError, ValueError):
             return 0
 
-def remove_output():
+def clean_and_exit():
     try:
         os.remove(config['output'])
-    except (TypeError, OSError) as e:
+    except (TypeError, OSError):
         pass
 
+    sys.exit('')
+
 def main():
-    signal.signal(signal.SIGTERM, lambda s, f: [remove_output(), exit()])
+    signal.signal(signal.SIGTERM, lambda s, f: clean_and_exit())
 
     try:
-        to = parse_time(sys.argv[1])
+        seconds = [parse_seconds(s) for s in sys.argv[1:]]
     except IndexError:
-        sys.exit(f"Usage: {os.path.basename(sys.argv[0])} <time>")
+        sys.exit(f"Usage: {os.path.basename(sys.argv[0])} <time..>")
 
     try:
-        while to:
-            countdown(to)
+        while len(seconds):
+            for s in seconds:
+                asyncio.run(countdown(s))
+                os.system("mpv /usr/share/sounds/budgie/default/alerts/bark.ogg")
     except KeyboardInterrupt:
-        remove_output()
-        print()
+        clean_and_exit()
 
 if __name__ == "__main__":
     main()
