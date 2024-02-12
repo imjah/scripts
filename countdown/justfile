@@ -1,23 +1,31 @@
-python := "./.venv/bin/python"
+main    := "countdown.py"
+venv    := "./.venv"
+vbin    := venv / "bin"
+vpip    := vbin / "pip"
+vpython := vbin / "python"
+vpytest := vbin / "pytest"
 
 setup:
-	python3 -m venv .venv
-	{{ python }} -m pip install -r requirements.txt
-
-pip *ARGS:
-	{{ python }} -m pip {{ARGS}}
-	{{ python }} -m pip freeze > requirements.txt
-
-test *ARGS:
-	{{ python }} -m pytest {{ARGS}}
+	python3 -m venv {{venv}}
+	{{vpip}} install -r requirements.txt
 
 clean:
-	rm -rf .pytest_cache .venv */__pycache__
+	rm -rf .pytest_cache/ {{venv}} __pycache__/
 
-install_dir := env_var_or_default('INSTALL_DIR', env_var('HOME')/'.local/bin')
+pip *ARGS:
+	{{vpip}} {{ARGS}} && {{vpip}} freeze > requirements.txt
+
+python *ARGS:
+	{{vpython}} {{ARGS}}
+
+run *ARGS:
+	{{vpython}} {{main}} {{ARGS}}
+
+test *ARGS:
+	{{vpytest}} {{ARGS}}
 
 install:
-	cp countdown.py "{{ install_dir }}/countdown"
+	cp {{main}} "{{executable_directory() / without_extension(main)}}"
 
 uninstall:
-	rm -f "{{ install_dir }}/countdown"
+	rm -f "{{executable_directory() / without_extension(main)}}"
