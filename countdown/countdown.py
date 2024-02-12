@@ -1,34 +1,31 @@
 #!/usr/bin/python3
 
+import argparse
 import asyncio
 import os
 import signal
 import sys
 
-config = {
-    'output': os.getenv('OUTPUT', None)
-}
+async def countdown(to: int, file: str | None):
+    def write(s: str):
+        try:
+            with open(file, 'w') as f:
+                f.write(s)
+        except (TypeError, FileNotFoundError):
+            print(s)
 
-async def countdown(to: int):
     total = to
 
     for unit, interval in {'h': 3600, 'm': 60, 's': 1}.items():
         while total > interval or (total == 1 and unit == 's'):
             sleep = asyncio.create_task(asyncio.sleep(interval))
-            display(f'{total // interval}{unit}')
+            write(f'{total // interval}{unit}')
             total -= interval
             await sleep
 
     os.system("mpv /usr/share/sounds/budgie/default/alerts/bark.ogg")
 
-def display(s: str):
-    try:
-        with open(config['output'], 'w') as file:
-            file.write(s)
-    except (TypeError, FileNotFoundError):
-        print(s)
-
-def parse_seconds(t: str) -> int:
+def parse_time(t: str) -> int:
     match t[-1]:
         case "h":
             return int(t[:-1]) * 3600
@@ -39,31 +36,25 @@ def parse_seconds(t: str) -> int:
         case _:
             return int(t)
 
-def clean_and_exit():
-    try:
-        os.remove(config['output'])
-    except (TypeError, OSError):
-        pass
-
-    sys.exit('')
+def rm(f: str | None):
+    if f and os.path.exist(f):
+        os.remove(f)
 
 def main():
-    signal.signal(signal.SIGTERM, lambda s, f: clean_and_exit())
-
-    if len(sys.argv) < 2:
-        sys.exit(f'Usage: {os.path.basename(sys.argv[0])} <time..>')
-
-    try:
-        times = [parse_seconds(time) for time in sys.argv[1:]]
-    except (IndexError, ValueError):
-        sys.exit('Invalid time value')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('time', nargs='+')
+    parser.add_argument('-o', '--output', metavar='FILE')
+    args   = parser.parse_args()
+    signal.signal(signal.SIGTERM, lambda s, f: [rm(args.output), exit()])
 
     try:
         while 1:
-            for time in times:
-                asyncio.run(countdown(time))
+            for to in [parse_time(t) for t in args.time]:
+                asyncio.run(countdown(to, args.output))
+    except (ValueError, IndexError):
+        sys.exit('Invalid time value')
     except KeyboardInterrupt:
-        clean_and_exit()
+        rm(args.output)
 
 if __name__ == "__main__":
     main()
