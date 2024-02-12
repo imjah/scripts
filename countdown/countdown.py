@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import os
+import signal
 import sys
 import time
 
@@ -54,6 +55,8 @@ def remove_output():
         pass
 
 def main():
+    signal.signal(signal.SIGTERM, lambda s, f: [remove_output(), exit()])
+
     try:
         to = parse_time(sys.argv[1])
     except IndexError:
