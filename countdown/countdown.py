@@ -19,6 +19,8 @@ async def countdown(to: int):
             total -= interval
             await sleep
 
+    os.system("mpv /usr/share/sounds/budgie/default/alerts/bark.ogg")
+
 def display(s: str):
     try:
         with open(config['output'], 'w') as file:
@@ -27,19 +29,15 @@ def display(s: str):
         print(s)
 
 def parse_seconds(t: str) -> int:
-    try:
-        return int(t)
-    except ValueError:
-        try:
-            match t[-1]:
-                case "s":
-                    return int(t[:-1])
-                case "m":
-                    return int(t[:-1]) * 60
-                case "h":
-                    return int(t[:-1]) * 3600
-        except (IndexError, ValueError):
-            return 0
+    match t[-1]:
+        case "h":
+            return int(t[:-1]) * 3600
+        case "m":
+            return int(t[:-1]) * 60
+        case "s":
+            return int(t[:-1])
+        case _:
+            return int(t)
 
 def clean_and_exit():
     try:
@@ -52,16 +50,18 @@ def clean_and_exit():
 def main():
     signal.signal(signal.SIGTERM, lambda s, f: clean_and_exit())
 
-    try:
-        seconds = [parse_seconds(s) for s in sys.argv[1:]]
-    except IndexError:
-        sys.exit(f"Usage: {os.path.basename(sys.argv[0])} <time..>")
+    if len(sys.argv) < 2:
+        sys.exit(f'Usage: {os.path.basename(sys.argv[0])} <time..>')
 
     try:
-        while len(seconds):
-            for s in seconds:
-                asyncio.run(countdown(s))
-                os.system("mpv /usr/share/sounds/budgie/default/alerts/bark.ogg")
+        times = [parse_seconds(time) for time in sys.argv[1:]]
+    except (IndexError, ValueError):
+        sys.exit('Invalid time value')
+
+    try:
+        while 1:
+            for time in times:
+                asyncio.run(countdown(time))
     except KeyboardInterrupt:
         clean_and_exit()
 

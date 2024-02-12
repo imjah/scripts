@@ -1,13 +1,16 @@
 import countdown
+import pytest
 
 def test_parse_seconds_empty():
-    assert countdown.parse_seconds("") == 0
+    with pytest.raises(IndexError):
+        countdown.parse_seconds("")
+
+def test_parse_seconds_no_value():
+    with pytest.raises(ValueError):
+        countdown.parse_seconds("s")
 
 def test_parse_seconds_no_unit():
     assert countdown.parse_seconds("5") == 5
-
-def test_parse_seconds_no_value():
-    assert countdown.parse_seconds("s") == 0
 
 def test_parse_seconds_in_seconds():
     assert countdown.parse_seconds("5s") == 5
