@@ -6,6 +6,20 @@ import sys
 import threading
 import yaml
 
+def get_config() -> dict:
+    config_dir = os.environ.get('XDG_CONFIG_DIR', os.environ.get('HOME') + '/.config')
+
+    with open(config_dir + '/ttv/config.yml') as f:
+        return {
+            **{
+                'piped': 'https://pipedapi.kavin.rocks',
+                'safetwitch': 'https://stbackend.drgns.space',
+                'twitch': [],
+                'youtube': []
+            },
+            **yaml.safe_load(f)
+        }
+
 def td(time: str, format: str = '%Y-%m-%dT%H:%M:%SZ') -> str:
     """Time diff from UTC now in seconds, minutes or hours"""
     diff = (datetime.utcnow() - datetime.strptime(time, format)).total_seconds()
@@ -103,19 +117,12 @@ class Channels:
         return streams
 
 def main():
-    config = {
-        'dir': f'{os.environ.get("XDG_CONFIG_DIR", os.environ.get("HOME") + "/.config")}/ttv',
-        'piped': 'https://pipedapi.kavin.rocks',
-        'safetwitch': 'https://stbackend.drgns.space',
-        'twitch': [],
-        'youtube': []
-    }
-
     try:
-        with open(f'{config["dir"]}/config.yml') as file:
-            config = {**config, **yaml.safe_load(file)}
-    except Exception as e:
-        sys.exit(f'Config error: {e}')
+        config = get_config()
+    except FileNotFoundError:
+        sys.exit('error: Config not found')
+    except yaml.YAMLError as e:
+        sys.exit('error: Config syntax: ' + str(e))
 
     channels = Channels(config)
     channels.fetch()
