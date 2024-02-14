@@ -45,7 +45,7 @@ class ChannelTwitch:
         self.streams = []
 
     def fetch(self):
-        d = requests.get(f'{config["safetwitch"]}/api/users/{self.id}').json()
+        d = requests.get(f'{self.config["safetwitch"]}/api/users/{self.id}').json()
 
         try:
             self.streams.append(Stream(
@@ -66,7 +66,7 @@ class ChannelYoutube:
 
     def fetch(self):
         p = '{"id":"%i","contentFilters":["livestreams"]}'.replace('%i', self.id)
-        d = requests.get(f'{config["piped"]}/channels/tabs?data={p}').json()
+        d = requests.get(f'{self.config["piped"]}/channels/tabs?data={p}').json()
 
         for c in d['content']:
             if c['duration'] == -1:
@@ -102,7 +102,7 @@ class Channels:
 
         return streams
 
-if __name__ == '__main__':
+def main():
     config = {
         'dir': f'{os.environ.get("XDG_CONFIG_DIR", os.environ.get("HOME") + "/.config")}/ttv',
         'piped': 'https://pipedapi.kavin.rocks',
@@ -122,3 +122,9 @@ if __name__ == '__main__':
 
     for stream in channels.sorted_streams():
         print(stream)
+
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        exit()
