@@ -4,26 +4,31 @@ import argparse
 import asyncio
 import os
 import signal
+import subprocess
 import sys
+import threading
 
-async def countdown(to: int, file: str | None):
-    def write(s: str):
-        try:
-            with open(file, 'w') as f:
-                f.write(s)
-        except (TypeError, FileNotFoundError):
-            print(s)
-
+async def countdown(to: int, output: str | None, media: str | None):
     total = to
 
     for unit, interval in {'h': 3600, 'm': 60, 's': 1}.items():
         while total > interval or (total == 1 and unit == 's'):
             sleep = asyncio.create_task(asyncio.sleep(interval))
-            write(f'{total // interval}{unit}')
+
+            try:
+                with open(output, 'w') as f:
+                    f.write(f'{total // interval}{unit}')
+            except (TypeError, FileNotFoundError):
+                print(f'{total // interval}{unit}')
+
             total -= interval
+
             await sleep
 
-    os.system("mpv /usr/share/sounds/budgie/default/alerts/bark.ogg")
+    if media and os.path.exists(media):
+        threading.Thread(
+            target=lambda: subprocess.run(['mpv', media], capture_output=True)
+        ).start()
 
 def parse_time(t: str) -> int:
     match t[-1]:
@@ -36,25 +41,25 @@ def parse_time(t: str) -> int:
         case _:
             return int(t)
 
-def rm(f: str | None):
-    if f and os.path.exist(f):
-        os.remove(f)
+def rm(file: str | None):
+    if file and os.path.exists(file):
+        os.remove(file)
 
-def main():
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('time', nargs='+')
     parser.add_argument('-o', '--output', metavar='FILE')
+    parser.add_argument('-m', '--media', metavar='FILE')
     args   = parser.parse_args()
+
     signal.signal(signal.SIGTERM, lambda s, f: [rm(args.output), exit()])
 
     try:
         while 1:
             for to in [parse_time(t) for t in args.time]:
-                asyncio.run(countdown(to, args.output))
+                asyncio.run(countdown(to, args.output, args.media))
     except (ValueError, IndexError):
         sys.exit('Invalid time value')
     except KeyboardInterrupt:
         rm(args.output)
-
-if __name__ == "__main__":
-    main()
+        print()
