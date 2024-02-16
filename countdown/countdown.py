@@ -5,7 +5,6 @@ import asyncio
 import os
 import signal
 import subprocess
-import sys
 import threading
 
 async def countdown(to: int, output: str | None, media: str | None):
@@ -30,24 +29,27 @@ async def countdown(to: int, output: str | None, media: str | None):
             target=lambda: subprocess.run(['mpv', media], capture_output=True)
         ).start()
 
-def parse_time(t: str) -> int:
-    match t[-1]:
-        case "h":
-            return int(t[:-1]) * 3600
-        case "m":
-            return int(t[:-1]) * 60
-        case "s":
-            return int(t[:-1])
-        case _:
-            return int(t)
+def parse_time(time):
+    try:
+        match time[-1]:
+            case 'h':
+                return int(time[:-1]) * 3600
+            case 'm':
+                return int(time[:-1]) * 60
+            case 's':
+                return int(time[:-1])
+            case _:
+                return int(time)
+    except (IndexError, ValueError):
+        raise argparse.ArgumentTypeError(f'invalid value "{time}"')
 
 def rm(file: str | None):
     if file and os.path.exists(file):
         os.remove(file)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('time', nargs='+')
+    parser.add_argument('time', nargs='+', type=parse_time)
     parser.add_argument('-o', '--output', metavar='FILE')
     parser.add_argument('-m', '--media', metavar='FILE')
     args   = parser.parse_args()
@@ -56,10 +58,8 @@ if __name__ == "__main__":
 
     try:
         while 1:
-            for to in [parse_time(t) for t in args.time]:
+            for to in args.time:
                 asyncio.run(countdown(to, args.output, args.media))
-    except (ValueError, IndexError):
-        sys.exit('Invalid time value')
     except KeyboardInterrupt:
         rm(args.output)
         print()
