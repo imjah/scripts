@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import re
 import requests
@@ -7,7 +7,7 @@ import threading
 import yaml
 
 def get_config() -> dict:
-    config_dir = os.environ.get('XDG_CONFIG_DIR', os.environ.get('HOME') + '/.config')
+    config_dir = os.environ.get('XDG_CONFIG_HOME', os.environ.get('HOME') + '/.config')
 
     with open(config_dir + '/ttv/config.yml') as f:
         return {
@@ -20,9 +20,10 @@ def get_config() -> dict:
             **yaml.safe_load(f)
         }
 
-def td(time: str, format: str = '%Y-%m-%dT%H:%M:%SZ') -> str:
+def td(time: str, format: str = '%Y-%m-%dT%H:%M:%S%z') -> str:
     """Time diff from UTC now in seconds, minutes or hours"""
-    diff = (datetime.utcnow() - datetime.strptime(time, format)).total_seconds()
+    time = datetime.strptime(time, format)
+    diff = (datetime.now(time.tzinfo) - time).total_seconds()
 
     for unit, divider in {'h': 3600, 'm': 60, 's': 1}.items():
         time = round(diff / divider)
@@ -32,32 +33,41 @@ def td(time: str, format: str = '%Y-%m-%dT%H:%M:%SZ') -> str:
 
     return '0s'
 
-def remove_emojis(s):
-    return re.sub("["u"\U0001F600-\U0001F64F"u"\U0001F300-\U0001F5FF""]+", '', s).strip()
-
 class Stream:
     def __init__(self, **kwargs):
         self.url     = kwargs.get('url'    , 'unknown')
         self.user    = kwargs.get('user'   , 'unknown')
         self.topic   = kwargs.get('topic'  , 'unknown')
+        self.title   = kwargs.get('title'  , 'unknown')
         self.viewers = kwargs.get('viewers', 'unknown')
         self.elapsed = kwargs.get('elapsed', 'unknown')
 
     def __str__(self):
-        return '{:24}  {:48}  {:8}  {:8}  {}'.format(
+        self.remove_emojis_from_title()
+
+        return '{:24}  {:24}  {:64}  {:8}  {:8}  {}'.format(
             self.user[:24],
-            self.topic[:48],
+            self.topic[:24],
+            self.title[:64],
             self.viewers[:8],
             self.elapsed[:8],
             self.url
         )
 
-class ChannelTwitch:
+    def remove_emojis_from_title(self):
+        # Remove emojis
+        self.title = re.sub("["u"\U0001F600-\U0001F64F"u"\U0001F300-\U0001F5FF""]+", '', self.title).strip()
+
+        # Remove double spaces
+        self.title = re.sub(r'\s+', ' ', self.title)
+
+class Channel:
     def __init__(self, id, config):
         self.id      = id
         self.config  = config
         self.streams = []
 
+class TT(Channel):
     def fetch(self):
         d = requests.get(f'{self.config["safetwitch"]}/api/users/{self.id}').json()
 
@@ -66,35 +76,48 @@ class ChannelTwitch:
                 url=f'https://twitch.tv/{self.id}',
                 user=d['data']['username'],
                 topic=d['data']['stream']['topic'],
+                title=d['data']['stream']['title'],
                 viewers=str(d['data']['stream']['viewers']),
-                elapsed=td(d['data']['stream']['startedAt'])
+                elapsed=td(d['data']['stream']['startedAt'].replace('Z', '+00:00'))
             ))
         except KeyError:
             return
 
-class ChannelYoutube:
-    def __init__(self, id, config):
-        self.id      = id
-        self.config  = config
-        self.streams = []
-
+class YT(Channel):
     def fetch(self):
-        p = '{"id":"%i","contentFilters":["livestreams"]}'.replace('%i', self.id)
-        d = requests.get(f'{self.config["piped"]}/channels/tabs?data={p}').json()
+        response = requests.get('{}/channels/tabs?data={}'.format(
+            self.config['piped'],
+            '{"id":"%i","contentFilters":["livestreams"]}'.replace('%i', self.id)
+        ))
 
-        for c in d['content']:
-            if c['duration'] == -1:
+        try:
+            streams = response.json()['content']
+        except KeyError:
+            return
+
+        for stream in streams:
+            if self.is_live(stream):
+                info = self.fetch_stream_info(stream['url'][9:])
+
                 self.streams.append(Stream(
-                    url=f'https://youtube.com{c["url"]}',
-                    user=c['uploaderName'],
-                    topic=remove_emojis(c['title']),
-                    viewers=str(c['views'])
+                    url=f'https://youtube.com{stream["url"]}',
+                    user=stream['uploaderName'],
+                    topic=info['category'],
+                    title=stream['title'],
+                    viewers=str(stream['views']),
+                    elapsed=td(info['uploadDate'])
                 ))
+
+    def fetch_stream_info(self, video_id):
+        return requests.get(f'{self.config["piped"]}/streams/{video_id}').json()
+
+    def is_live(self, content):
+        return content['duration'] == -1
 
 class Channels:
     def __init__(self, config):
-        self.channels = [ChannelTwitch(i, config) for i in config['twitch']]
-        self.channels += [ChannelYoutube(i, config) for i in config['youtube']]
+        self.channels = [TT(id, config) for id in config['twitch']] \
+                      + [YT(id, config) for id in config['youtube']]
 
     def fetch(self):
         threads = [threading.Thread(target=c.fetch) for c in self.channels]
@@ -106,11 +129,7 @@ class Channels:
             thread.join()
 
     def streams(self):
-        return [stream for channel in self.channels for stream in channel.streams]
-
-    def sorted_streams(self):
-        streams = self.streams()
-
+        streams = [stream for channel in self.channels for stream in channel.streams]
         streams.sort(key=lambda k: k.viewers, reverse=True)
         streams.sort(key=lambda k: k.topic)
 
@@ -127,7 +146,7 @@ def main():
     channels = Channels(config)
     channels.fetch()
 
-    for stream in channels.sorted_streams():
+    for stream in channels.streams():
         print(stream)
 
 if __name__ == '__main__':
