@@ -1,24 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime
 import os
 import re
 import requests
 import sys
 import threading
 import yaml
-
-def get_config() -> dict:
-    config_dir = os.environ.get('XDG_CONFIG_HOME', os.environ.get('HOME') + '/.config')
-
-    with open(config_dir + '/ttv/config.yml') as f:
-        return {
-            **{
-                'piped': 'https://pipedapi.kavin.rocks',
-                'safetwitch': 'https://stbackend.drgns.space',
-                'twitch': [],
-                'youtube': []
-            },
-            **yaml.safe_load(f)
-        }
 
 def td(time: str, format: str = '%Y-%m-%dT%H:%M:%S%z') -> str:
     """Time diff from UTC now in seconds, minutes or hours"""
@@ -64,55 +50,60 @@ class Stream:
 class Channel:
     def __init__(self, id, config):
         self.id      = id
+        self.error   = False
         self.config  = config
         self.streams = []
 
 class TT(Channel):
     def fetch(self):
-        d = requests.get(f'{self.config["safetwitch"]}/api/users/{self.id}').json()
+        for url in self.config['safetwitch']:
+            try:
+                return self._fetch(url)
+            except (KeyError, requests.RequestException) as e:
+                continue
 
-        try:
-            self.streams.append(Stream(
-                url=f'https://twitch.tv/{self.id}',
-                user=d['data']['username'],
-                topic=d['data']['stream']['topic'],
-                title=d['data']['stream']['title'],
-                viewers=str(d['data']['stream']['viewers']),
-                elapsed=td(d['data']['stream']['startedAt'].replace('Z', '+00:00'))
+        self.error = True
+
+    def _fetch(self, url):
+        channel = requests.get(f'{url}/api/users/{self.id}').json()['data']
+
+        if channel['isLive']:
+            self.streams.append(
+                Stream(
+                    url=f'https://twitch.tv/{self.id}',
+                    user=channel['username'],
+                    topic=channel['stream']['topic'],
+                    title=channel['stream']['title'],
+                    viewers=str(channel['stream']['viewers']),
+                    elapsed=td(channel['stream']['startedAt'].replace('Z', '+00:00'))
             ))
-        except KeyError:
-            return
 
 class YT(Channel):
     def fetch(self):
-        response = requests.get('{}/channels/tabs?data={}'.format(
-            self.config['piped'],
-            '{"id":"%i","contentFilters":["livestreams"]}'.replace('%i', self.id)
-        ))
+        for url in self.config['piped']:
+            try:
+                return self._fetch(url)
+            except (KeyError, requests.RequestException) as e:
+                continue
 
-        try:
-            streams = response.json()['content']
-        except KeyError:
-            return
+        self.error = True
 
-        for stream in streams:
-            if self.is_live(stream):
-                info = self.fetch_stream_info(stream['url'][9:])
+    def _fetch(self, url):
+        videos = requests.get(f'{url}/channels/tabs?data={{"id":"{self.id}","contentFilters":["livestreams"]}}').json()['content']
 
-                self.streams.append(Stream(
-                    url=f'https://youtube.com{stream["url"]}',
-                    user=stream['uploaderName'],
-                    topic=info['category'],
-                    title=stream['title'],
-                    viewers=str(stream['views']),
-                    elapsed=td(info['uploadDate'])
+        for video in videos:
+            if video['duration'] == -1:
+                stream = requests.get(f'{url}/streams/{video["url"][9:]}').json()
+
+                self.streams.append(
+                    Stream(
+                        url=f'https://youtube.com{video["url"]}',
+                        user=stream['uploader'],
+                        topic=stream['category'],
+                        title=stream['title'],
+                        viewers=str(stream['views']),
+                        elapsed=td(stream['uploadDate'])
                 ))
-
-    def fetch_stream_info(self, video_id):
-        return requests.get(f'{self.config["piped"]}/streams/{video_id}').json()
-
-    def is_live(self, content):
-        return content['duration'] == -1
 
 class Channels:
     def __init__(self, config):
@@ -135,6 +126,23 @@ class Channels:
 
         return streams
 
+    def errors(self):
+        return [channel.id for channel in self.channels if channel.error]
+
+def get_config() -> dict:
+    config_dir = os.environ.get('XDG_CONFIG_HOME', os.environ.get('HOME') + '/.config')
+
+    with open(config_dir + '/ttv/config.yml') as f:
+        return {
+            **{
+                'piped': ['https://pipedapi.kavin.rocks'],
+                'safetwitch': ['https://stbackend.drgns.space'],
+                'twitch': [],
+                'youtube': []
+            },
+            **yaml.safe_load(f)
+        }
+
 def main():
     try:
         config = get_config()
@@ -149,8 +157,13 @@ def main():
     for stream in channels.streams():
         print(stream)
 
+    channels_with_error = channels.errors()
+
+    if channels_with_error:
+        sys.exit(f'error: Cannot fetch {len(channels_with_error)} channel(s): {", ".join(channels_with_error)}')
+
 if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        exit()
+        sys.exit('')
