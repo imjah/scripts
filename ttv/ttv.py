@@ -31,7 +31,7 @@ class Stream:
     def __str__(self):
         self.remove_emojis_from_title()
 
-        return '{:24}  {:24} {:64} {:8} {:8} {}'.format(
+        return '{:24}  {:24}  {:64}  {:8}  {:8}  {}'.format(
             self.user[:24],
             self.topic[:24],
             self.title[:64],
@@ -57,7 +57,7 @@ class Stream:
                             "]+", '', self.title, flags=re.UNICODE)
 
         # Remove double spaces
-        self.title = re.sub(r'\s+', ' ', self.title)
+        self.title = re.sub(r'\s+', ' ', self.title).strip()
 
 class Channel:
     def __init__(self, id, urls):
