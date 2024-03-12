@@ -17,10 +17,10 @@ class Stream:
         self.date    = kwargs.get('date'   , 'unknown')
 
     def __str__(self) -> str:
-        return '{:16}  {:48}  {:16}  {:<8,}  {}  {}'.format(
+        return '{:16}  {:48}  {:24}  {:<8,}  {}  {}'.format(
             self.user[:16],
             self._get_title_without_emojis()[:48],
-            self.topic[:16],
+            self.topic[:24],
             self.viewers,
             self._get_date_clock(),
             self.url
