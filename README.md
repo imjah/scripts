@@ -6,10 +6,8 @@ Resource friendly, distraction free feed for Twitch and YouTube livestreams buil
 
 Make sure you have [`just`](https://github.com/casey/just) and `python3` installed.
 
-In [``ttv``](ttv) directory:
-
 ```
-just setup && just build && just install
+cd ttv && just setup && just build && just install
 ```
 
 **Uninstall**
@@ -53,5 +51,3 @@ View available livestreams, select and play one of them:
 ```
 MENU="fzf" PLAYER="mpv" ttvmenu
 ```
-
-> [`fzf`](https://github.com/junegunn/fzf) and [`mpv`](https://github.com/mpv-player/mpv) are used by default, but you can change it as shown above.
