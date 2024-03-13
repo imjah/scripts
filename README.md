@@ -4,7 +4,9 @@ Resource friendly, distraction free feed for Twitch and YouTube livestreams buil
 
 **Install**
 
-Make sure you have [`just`](https://github.com/casey/just) and `python3` installed. In [ttv](ttv) directory:
+Make sure you have [`just`](https://github.com/casey/just) and `python3` installed.
+
+In [``ttv``](ttv) directory:
 
 ```
 just setup && just build && just install
