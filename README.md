@@ -40,14 +40,20 @@ safetwitch:
 
 **Usage**
 
-View available livestreams:
+Show available livestreams:
 
 ```
 ttv
 ```
 
-View available livestreams, select and play one of them:
+Show available livestreams, select and play one of them:
 
 ```
 MENU="fzf" PLAYER="mpv" ttvmenu
+```
+
+Show chat (YouTube not supported):
+
+```
+ttv --chat <channel-id>
 ```
