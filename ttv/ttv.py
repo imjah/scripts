@@ -1,10 +1,14 @@
+from argparse import ArgumentParser
 from datetime import datetime
+import asyncio
+import json
 import os
 import re
 import requests
 import sys
 import threading
 import time
+import websockets
 import yaml
 
 class Stream:
@@ -122,7 +126,52 @@ def get_config() -> dict:
             **yaml.safe_load(f)
         }
 
-if __name__ == '__main__':
+class Chat:
+    def __init__(self, channel_id: str):
+        self.channel_id = channel_id
+
+    async def listen(self):
+        print(f'Joining {self.channel_id} chat... ', end='')
+
+        await self._listen('wss://stbackend.drgns.space')
+
+    async def _listen(self, url):
+        async with websockets.connect(url) as ws:
+            await ws.send(f'JOIN {self.channel_id}')
+
+            if await ws.recv() == 'OK':
+                print('joined')
+            else:
+                sys.exit(f'error: Cannot join {channel_id} chat')
+
+            while True:
+                msg = await ws.recv()
+
+                try:
+                    msg = json.loads(msg)
+
+                    print(f'{self._colorize(msg["tags"]["display-name"], msg["tags"]["color"])}: {msg["message"]}', end='')
+                except json.JSONDecodeError:
+                    print(msg)
+
+    def _colorize(self, msg: str, hex_color: str):
+        try:
+            r = int(hex_color[1:3], 16)
+            g = int(hex_color[3:5], 16)
+            b = int(hex_color[5:7], 16)
+        except ValueError:
+            return msg
+
+        ansi = 16 + (36 * r // 256) + (6 * g // 256) + (b // 256)
+
+        return f'\033[38;5;{ansi}m{msg}\033[0m'
+
+def main(args: ArgumentParser):
+    if args.chat:
+        asyncio.run(
+            Chat(args.chat).listen()
+        )
+
     try:
         channels = Channels(get_config())
         channels.fetch()
@@ -140,3 +189,18 @@ if __name__ == '__main__':
         sys.exit('error: Config not found')
     except yaml.YAMLError as e:
         sys.exit('error: Config syntax: ' + str(e))
+
+if __name__ == '__main__':
+    parser = ArgumentParser(
+        prog='ttv',
+        description='Feed for Twitch and YouTube livestreams'
+    )
+
+    parser.add_argument('-c', '--chat', help='Show chat for given channel id')
+
+    try:
+        main(
+            parser.parse_args()
+        )
+    except KeyboardInterrupt:
+        print()
