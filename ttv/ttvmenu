@@ -1,5 +1,5 @@
 #!/bin/bash
 
-LINK="$(ttv | dmenu $@ | grep -oE 'https://[^[:space:]]+')"
+LINK="$(ttv | ${MENU:-fzf} $@ | grep -oE 'https://[^[:space:]]+')"
 
-[ "$LINK" ] && mpv "$LINK"
+[ "$LINK" ] && ${PLAYER:-mpv} "$LINK"
