@@ -127,7 +127,7 @@ def get_config() -> dict:
         }
 
 class Chat:
-    def __init__(self, channel_id: str):
+    def __init__(self, channel_id: str, urls):
         self.channel_id = channel_id
 
     async def listen(self):
@@ -151,7 +151,7 @@ class Chat:
                     msg = json.loads(msg)
 
                     print(f'{self._colorize(msg["tags"]["display-name"], msg["tags"]["color"])}: {msg["message"]}', end='')
-                except json.JSONDecodeError:
+                except (KeyError, json.JSONDecodeError):
                     print(msg)
 
     def _colorize(self, msg: str, hex_color: str):
@@ -167,28 +167,26 @@ class Chat:
         return f'\033[38;5;{ansi}m{msg}\033[0m'
 
 def main(args: ArgumentParser):
-    if args.chat:
-        asyncio.run(
-            Chat(args.chat).listen()
-        )
-
     try:
-        channels = Channels(get_config())
-        channels.fetch()
-
-        for stream in channels.streams():
-            print(stream)
-
-        channels_unfeched = channels.unfetched()
-
-        if channels_unfeched:
-            sys.exit('error: Cannot fetch channel(s): ' + ", ".join(channels_unfeched))
-    except KeyboardInterrupt:
-        sys.exit('')
+        config = get_config()
     except FileNotFoundError:
         sys.exit('error: Config not found')
     except yaml.YAMLError as e:
         sys.exit('error: Config syntax: ' + str(e))
+
+    if args.chat:
+        asyncio.run(Chat(args.chat, config['safetwitch']).listen())
+
+    channels = Channels(config)
+    channels.fetch()
+
+    for stream in channels.streams():
+        print(stream)
+
+    channels_unfeched = channels.unfetched()
+
+    if channels_unfeched:
+        sys.exit('error: Cannot fetch channel(s): ' + ", ".join(channels_unfeched))
 
 if __name__ == '__main__':
     parser = ArgumentParser(
@@ -199,8 +197,7 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--chat', help='Show chat for given channel id')
 
     try:
-        main(
-            parser.parse_args()
-        )
+        main(parser.parse_args())
     except KeyboardInterrupt:
         print()
+        exit()
