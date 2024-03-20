@@ -1,5 +1,7 @@
 from argparse import ArgumentParser
 from datetime import datetime
+from json import JSONDecodeError
+from websockets import InvalidURI, InvalidHandshake, ProtocolError
 import asyncio
 import json
 import os
@@ -61,7 +63,7 @@ class Channel:
 
 class TT(Channel):
     def _fetch(self, url):
-        channel = requests.get(f'{url}/api/users/{self.id}').json()['data']
+        channel = requests.get(f'{url}/api/users/{self.id}', timeout=1).json()['data']
 
         if channel['isLive']:
             self.streams.append(
@@ -76,11 +78,11 @@ class TT(Channel):
 
 class YT(Channel):
     def _fetch(self, url):
-        videos = requests.get(f'{url}/channels/tabs?data={{"id":"{self.id}","contentFilters":["livestreams"]}}').json()['content']
+        videos = requests.get(f'{url}/channels/tabs?data={{"id":"{self.id}","contentFilters":["livestreams"]}}', timeout=1).json()['content']
 
         for video in videos:
             if video['duration'] == -1:
-                stream = requests.get(f'{url}/streams/{video["url"][9:]}').json()
+                stream = requests.get(f'{url}/streams/{video["url"][9:]}', timeout=1).json()
 
                 self.streams.append(
                     Stream(
@@ -112,47 +114,57 @@ class Channels:
     def unfetched(self) -> list:
         return [channel.id for channel in self.channels if not channel.fetched]
 
-def get_config() -> dict:
-    config_dir = os.environ.get('XDG_CONFIG_HOME', os.environ.get('HOME') + '/.config')
-
-    with open(config_dir + '/ttv/config.yml') as f:
-        return {
-            **{
-                'piped': ['https://pipedapi.kavin.rocks'],
-                'safetwitch': ['https://stbackend.drgns.space'],
-                'twitch': [],
-                'youtube': []
-            },
-            **yaml.safe_load(f)
-        }
-
 class Chat:
-    def __init__(self, channel_id: str, urls):
-        self.channel_id = channel_id
+    def __init__(self, id: str, config: dict):
+        self.id      = id
+        self.urls    = config['safetwitch']
+        self.timeout = config['timeout']
 
     async def listen(self):
-        print(f'Joining {self.channel_id} chat... ', end='')
+        print(f'Joining {self.id} chat... ', end='')
 
-        await self._listen('wss://stbackend.drgns.space')
+        for url in self.urls:
+            try:
+                await self._listen(url.replace('http', 'ws'))
 
-    async def _listen(self, url):
-        async with websockets.connect(url) as ws:
-            await ws.send(f'JOIN {self.channel_id}')
+                return
+            except (InvalidURI, InvalidHandshake, ProtocolError):
+                continue
 
-            if await ws.recv() == 'OK':
-                print('joined')
-            else:
-                sys.exit(f'error: Cannot join {channel_id} chat')
+        print('failed')
 
-            while True:
+    async def _listen(self, url: str):
+        async with websockets.connect(url, timeout=self.timeout) as ws:
+            await ws.send(f'JOIN {self.id}')
+
+            while 1:
                 msg = await ws.recv()
 
                 try:
-                    msg = json.loads(msg)
-
-                    print(f'{self._colorize(msg["tags"]["display-name"], msg["tags"]["color"])}: {msg["message"]}', end='')
-                except (KeyError, json.JSONDecodeError):
+                    print(self._format(json.loads(msg)))
+                except JSONDecodeError:
                     print(msg)
+                finally:
+                    continue
+
+    def _format(self, msg: dict):
+        try:
+            match msg['type']:
+                case 'PRIVMSG':
+                    return self._format_user(msg)
+        except KeyError:
+            pass
+
+        return msg
+
+    def _format_user(self, msg: dict):
+        return '{}: {}'.format(
+            self._colorize(
+                msg['tags']['display-name'],
+                msg['tags']['color']
+            ),
+            msg['message'].strip()
+        )
 
     def _colorize(self, msg: str, hex_color: str):
         try:
@@ -166,16 +178,28 @@ class Chat:
 
         return f'\033[38;5;{ansi}m{msg}\033[0m'
 
-def main(args: ArgumentParser):
-    try:
-        config = get_config()
-    except FileNotFoundError:
-        sys.exit('error: Config not found')
-    except yaml.YAMLError as e:
-        sys.exit('error: Config syntax: ' + str(e))
+def get_config() -> dict:
+    config_dir = os.environ.get('XDG_CONFIG_HOME', os.environ.get('HOME') + '/.config')
+
+    with open(config_dir + '/ttv/config.yml') as f:
+        return {
+            **{
+                'piped': ['https://pipedapi.kavin.rocks'],
+                'safetwitch': ['https://stbackend.drgns.space'],
+                'twitch': [],
+                'youtube': [],
+                'timeout': 5
+            },
+            **yaml.safe_load(f)
+        }
+
+async def main(args: ArgumentParser):
+    config = get_config()
 
     if args.chat:
-        asyncio.run(Chat(args.chat, config['safetwitch']).listen())
+        await Chat(args.chat, config).listen()
+
+        return
 
     channels = Channels(config)
     channels.fetch()
@@ -183,10 +207,8 @@ def main(args: ArgumentParser):
     for stream in channels.streams():
         print(stream)
 
-    channels_unfeched = channels.unfetched()
-
-    if channels_unfeched:
-        sys.exit('error: Cannot fetch channel(s): ' + ", ".join(channels_unfeched))
+    if unfeched := channels.unfetched():
+        sys.exit(f'error: Cannot fetch channel/s: {", ".join(unfeched)}')
 
 if __name__ == '__main__':
     parser = ArgumentParser(
@@ -197,7 +219,12 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--chat', help='Show chat for given channel id')
 
     try:
-        main(parser.parse_args())
+        asyncio.run(
+            main(parser.parse_args())
+        )
+    except FileNotFoundError:
+        sys.exit('error: Config not found')
+    except yaml.YAMLError as e:
+        sys.exit('error: Config syntax: ' + str(e))
     except KeyboardInterrupt:
         print()
-        exit()
