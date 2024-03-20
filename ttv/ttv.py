@@ -129,6 +129,7 @@ class Chat:
         self.id      = id
         self.urls    = config['safetwitch']
         self.timeout = config['timeout']
+        self.spacing = config['chat-spacing']*'\n' + '\n'
 
     async def listen(self):
         print(f'Joining {self.id} chat... ', end='')
@@ -141,7 +142,7 @@ class Chat:
             except (InvalidURI, InvalidHandshake, ProtocolError):
                 continue
 
-        print('failed')
+        print('failed', end=self.spacing)
 
     async def _listen(self, url: str):
         async with websockets.connect(url, timeout=self.timeout) as ws:
@@ -151,9 +152,9 @@ class Chat:
                 msg = await ws.recv()
 
                 try:
-                    print(self._format(json.loads(msg)))
+                    print(self._format(json.loads(msg)), end=self.spacing)
                 except JSONDecodeError:
-                    print(msg)
+                    print(msg, end=self.spacing)
                 finally:
                     continue
 
@@ -198,7 +199,8 @@ def get_config() -> dict:
                 'safetwitch': ['https://stbackend.drgns.space'],
                 'twitch': [],
                 'youtube': [],
-                'timeout': 5
+                'timeout': 5,
+                'chat-spacing': 0
             },
             **yaml.safe_load(f)
         }
