@@ -45,11 +45,11 @@ class Stream:
         return spaces.sub(' ', emojis.sub('', self.title)).strip()
 
 class Channel:
-    def __init__(self, id, urls):
+    def __init__(self, id, config):
         self.id      = id
-        self.urls    = urls
         self.streams = []
         self.fetched = False
+        self.timeout = config['timeout']
 
     def fetch(self):
         for url in self.urls:
@@ -62,8 +62,13 @@ class Channel:
                 continue
 
 class TT(Channel):
+    def __init__(self, id, config):
+        super().__init__(id, config)
+
+        self.urls = config['safetwitch']
+
     def _fetch(self, url):
-        channel = requests.get(f'{url}/api/users/{self.id}', timeout=1).json()['data']
+        channel = requests.get(f'{url}/api/users/{self.id}', timeout=self.timeout).json()['data']
 
         if channel['isLive']:
             self.streams.append(
@@ -77,12 +82,17 @@ class TT(Channel):
             ))
 
 class YT(Channel):
+    def __init__(self, id, config):
+        super().__init__(id, config)
+
+        self.urls = config['piped']
+
     def _fetch(self, url):
-        videos = requests.get(f'{url}/channels/tabs?data={{"id":"{self.id}","contentFilters":["livestreams"]}}', timeout=1).json()['content']
+        videos = requests.get(f'{url}/channels/tabs?data={{"id":"{self.id}","contentFilters":["livestreams"]}}', timeout=self.timeout).json()['content']
 
         for video in videos:
             if video['duration'] == -1:
-                stream = requests.get(f'{url}/streams/{video["url"][9:]}', timeout=1).json()
+                stream = requests.get(f'{url}/streams/{video["url"][9:]}', timeout=self.timeout).json()
 
                 self.streams.append(
                     Stream(
@@ -96,8 +106,8 @@ class YT(Channel):
 
 class Channels:
     def __init__(self, config):
-        self.channels = [TT(id, config['safetwitch']) for id in config['twitch']] \
-                      + [YT(id, config['piped']) for id in config['youtube']]
+        self.channels = [TT(id, config) for id in config['twitch']] \
+                      + [YT(id, config) for id in config['youtube']]
 
     def fetch(self):
         threads = [threading.Thread(target=c.fetch) for c in self.channels]
