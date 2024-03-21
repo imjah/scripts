@@ -184,17 +184,20 @@ class Chat:
         )
 
     def _get_badges(self, msg: dict):
-        badges = []
+        badges = ''
 
-        for tag, badge in {'mod': self.badge_mod, 'vip': self.badge_vip, 'subscriber': self.badge_sub}.items():
+        for tag, badge in {
+                'mod'       : self.badge_mod,
+                'vip'       : self.badge_vip,
+                'subscriber': self.badge_sub
+        }.items():
             try:
                 if msg['tags'][tag] == '1':
-                    badges.append(badge)
-                    badges.append(' ')
+                    badges += badge + ' '
             except KeyError:
                 continue
 
-        return ''.join(badges)
+        return badges
 
     def _colorize(self, msg: str, hex_color: str):
         try:
