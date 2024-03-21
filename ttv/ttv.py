@@ -145,7 +145,7 @@ class Chat:
             except (InvalidURI, InvalidHandshake, ProtocolError):
                 continue
 
-        print('failed', end=self.spacing)
+        print('failed')
 
     async def _listen(self, url: str):
         async with websockets.connect(url, timeout=self.timeout) as ws:
@@ -164,6 +164,8 @@ class Chat:
     def _format(self, msg: dict):
         try:
             match msg['type']:
+                case 'NOTICE':
+                    return msg['message'].strip()
                 case 'PRIVMSG':
                     return self._format_user(msg)
         except KeyError:
