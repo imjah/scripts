@@ -126,10 +126,13 @@ class Channels:
 
 class Chat:
     def __init__(self, id: str, config: dict):
-        self.id      = id
-        self.urls    = config['safetwitch']
-        self.timeout = config['timeout']
-        self.spacing = config['chat-spacing']*'\n' + '\n'
+        self.id        = id
+        self.urls      = config['safetwitch']
+        self.timeout   = config['timeout']
+        self.spacing   = config['chat-spacing']*'\n' + '\n'
+        self.badge_mod = config['chat-badge-mod']
+        self.badge_vip = config['chat-badge-vip']
+        self.badge_sub = config['chat-badge-sub']
 
     async def listen(self):
         print(f'Joining {self.id} chat... ', end='')
@@ -169,13 +172,27 @@ class Chat:
         return msg
 
     def _format_user(self, msg: dict):
-        return '{}: {}'.format(
+        return '{}{}: {}'.format(
+            self._get_badges(msg),
             self._colorize(
                 msg['tags']['display-name'],
                 msg['tags']['color']
             ),
             msg['message'].strip()
         )
+
+    def _get_badges(self, msg: dict):
+        badges = []
+
+        for tag, badge in {'mod': self.badge_mod, 'vip': self.badge_vip, 'subscriber': self.badge_sub}.items():
+            try:
+                if msg['tags'][tag] == '1':
+                    badges.append(badge)
+                    badges.append(' ')
+            except KeyError:
+                continue
+
+        return ''.join(badges)
 
     def _colorize(self, msg: str, hex_color: str):
         try:
@@ -200,7 +217,10 @@ def get_config() -> dict:
                 'twitch': [],
                 'youtube': [],
                 'timeout': 5,
-                'chat-spacing': 0
+                'chat-spacing': 0,
+                'chat-badge-mod': '⭐',
+                'chat-badge-vip': '💟',
+                'chat-badge-sub': '🎁'
             },
             **yaml.safe_load(f)
         }
