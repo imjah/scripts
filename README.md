@@ -36,6 +36,14 @@ piped:
 safetwitch:
   - https://stbackend.drgns.space
   - ...
+
+timeout: 5
+
+chat-spacing: 0
+chat-badge-new: 👋
+chat-badge-mod: ⭐
+chat-badge-vip: 💟
+chat-badge-sub: 🎁
 ```
 
 **Usage**
