@@ -130,6 +130,7 @@ class Chat:
         self.urls      = config['safetwitch']
         self.timeout   = config['timeout']
         self.spacing   = config['chat-spacing']*'\n' + '\n'
+        self.badge_new = config['chat-badge-new']
         self.badge_mod = config['chat-badge-mod']
         self.badge_vip = config['chat-badge-vip']
         self.badge_sub = config['chat-badge-sub']
@@ -187,6 +188,7 @@ class Chat:
         badges = ''
 
         for tag, badge in {
+                'first-msg' : self.badge_new,
                 'mod'       : self.badge_mod,
                 'vip'       : self.badge_vip,
                 'subscriber': self.badge_sub
@@ -223,6 +225,7 @@ def get_config() -> dict:
                 'youtube': [],
                 'timeout': 5,
                 'chat-spacing': 0,
+                'chat-badge-new': '👋',
                 'chat-badge-mod': '⭐',
                 'chat-badge-vip': '💟',
                 'chat-badge-sub': '🎁'
