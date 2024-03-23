@@ -167,12 +167,20 @@ class Chat:
             match msg['type']:
                 case 'NOTICE':
                     return msg['message'].strip()
+                case 'CLEARCHAT'
+                    return self._format_ban(msg)
                 case 'PRIVMSG':
                     return self._format_user(msg)
         except KeyError:
             pass
 
         return msg
+
+    def _format_ban(self, msg: dict):
+        return '{} has been banned for {} seconds'.format(
+            msg['message'].strip(),
+            msg['tags']['@ban-diration']
+        )
 
     def _format_user(self, msg: dict):
         return '{}{}: {}'.format(
