@@ -167,7 +167,7 @@ class Chat:
             match msg['type']:
                 case 'NOTICE':
                     return msg['message'].strip()
-                case 'CLEARCHAT'
+                case 'CLEARCHAT':
                     return self._format_ban(msg)
                 case 'PRIVMSG':
                     return self._format_user(msg)
