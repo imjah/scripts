@@ -156,7 +156,10 @@ class Chat:
                 msg = await ws.recv()
 
                 try:
-                    print(self._format(json.loads(msg)), end=self.spacing)
+                    msg = self._format(json.loads(msg))
+
+                    if msg:
+                        print(msg, end=self.spacing)
                 except JSONDecodeError:
                     print(msg, end=self.spacing)
                 finally:
@@ -167,10 +170,12 @@ class Chat:
             match msg['type']:
                 case 'NOTICE':
                     return msg['message'].strip()
+                case 'CLEARMSG':
+                    return
                 case 'CLEARCHAT':
                     return self._format_ban(msg)
                 case 'PRIVMSG':
-                    return self._format_user(msg)
+                    return self._format_regular(msg)
         except KeyError:
             pass
 
@@ -182,7 +187,7 @@ class Chat:
             msg['tags']['@ban-duration']
         )
 
-    def _format_user(self, msg: dict):
+    def _format_regular(self, msg: dict):
         return '{}{}: {}'.format(
             self._get_badges(msg),
             self._colorize(
