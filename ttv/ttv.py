@@ -179,7 +179,7 @@ class Chat:
     def _format_ban(self, msg: dict):
         return '{} has been banned for {} seconds'.format(
             msg['message'].strip(),
-            msg['tags']['@ban-diration']
+            msg['tags']['@ban-duration']
         )
 
     def _format_user(self, msg: dict):
