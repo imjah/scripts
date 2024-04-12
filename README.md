@@ -7,7 +7,7 @@ Resource friendly, distraction free feed for Twitch and YouTube livestreams buil
 Make sure you have [`just`](https://github.com/casey/just) and `python3` installed.
 
 ```
-cd ttv && just setup && just build && just install
+cd ttv && just install
 ```
 
 **Uninstall**
