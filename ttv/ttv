@@ -1,0 +1,5 @@
+#!/bin/bash
+
+dir="${XDG_DATA_HOME:-$HOME/.local/share}/ttv"
+
+exec "$dir/.venv/bin/python" "$dir/ttv.py" $@

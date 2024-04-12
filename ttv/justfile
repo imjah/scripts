@@ -1,37 +1,31 @@
-main         := "ttv.py"
-menu         := "ttvmenu"
-venv         := "./.venv"
-vbin         := venv / "bin"
-vpip         := vbin / "pip"
-vpython      := vbin / "python"
-vpytest      := vbin / "pytest"
-vpyinstaller := vbin / "pyinstaller"
+exec    := 'ttv'
+menu    := 'ttvmenu'
+main    := 'ttv.py'
+reqs    := 'requirements.txt'
+venv    := './.venv'
+vpip    := venv / 'bin/pip'
+vpython := venv / 'bin/python'
+bin     := executable_directory()
+data    := data_local_directory() / exec
 
 setup:
-	python3 -m venv {{venv}}
-	{{vpip}} install -r requirements.txt
-
-build:
-	{{vpyinstaller}} --onefile {{main}}
+	python3 -m venv "{{venv}}"
+	{{vpip}} install -r "{{reqs}}"
 
 clean:
-	rm -rf *.spec .pytest_cache/ {{venv}} __pycache__/ build/ dist/
+	rm -rf "{{venv}}"
 
-pip *ARGS:
-	{{vpip}} {{ARGS}} && {{vpip}} freeze > requirements.txt
-
-python *ARGS:
-	{{vpython}} {{ARGS}}
-
-run *ARGS:
-	{{vpython}} {{main}} {{ARGS}}
-
-test *ARGS:
-	{{vpytest}} {{ARGS}}
-
-install:
-	cp -t "{{executable_directory()}}" "dist/{{without_extension(main)}}" {{menu}}
+install: setup
+	mkdir -p "{{bin}}" "{{data}}"
+	cp -t "{{bin}}" "{{exec}}" "{{menu}}"
+	cp -rt "{{data}}" "{{venv}}" "{{main}}"
 
 uninstall:
-	rm -f "{{executable_directory() / without_extension(main)}}" \
-	      "{{executable_directory() / menu}}"
+	rm -rf "{{bin / exec}}" "{{bin / menu}}" "{{data}}"
+
+pip *args:
+	{{vpip}} {{args}} && \
+	{{vpip}} freeze > "{{reqs}}"
+
+run *args:
+	{{vpython}} "{{main}}" {{args}}
