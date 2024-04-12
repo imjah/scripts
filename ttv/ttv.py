@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 from json import JSONDecodeError
 from websockets import InvalidURI, InvalidHandshake, ProtocolError
+from yaml import YAMLError
 import asyncio
 import json
 import os
@@ -47,7 +48,6 @@ class Stream:
 class Channel:
     def __init__(self, id, config):
         self.id      = id
-        self.streams = []
         self.fetched = False
         self.timeout = config['timeout']
 
@@ -71,7 +71,7 @@ class TT(Channel):
         channel = requests.get(f'{url}/api/users/{self.id}', timeout=self.timeout).json()['data']
 
         if channel['isLive']:
-            self.streams.append(
+            print(
                 Stream(
                     url     = 'https://twitch.tv/' + self.id,
                     user    = channel['username'],
@@ -94,7 +94,7 @@ class YT(Channel):
             if video['duration'] == -1:
                 stream = requests.get(f'{url}/streams/{video["url"][9:]}', timeout=self.timeout).json()
 
-                self.streams.append(
+                print(
                     Stream(
                         url     = 'https://youtube.com' + video['url'],
                         user    = stream['uploader'],
@@ -117,9 +117,6 @@ class Channels:
 
         for thread in threads:
             thread.join()
-
-    def streams(self) -> list:
-        return sorted([stream for channel in self.channels for stream in channel.streams], key=lambda k: k.user)
 
     def unfetched(self) -> list:
         return [channel.id for channel in self.channels if not channel.fetched]
@@ -257,9 +254,6 @@ async def main(args: ArgumentParser):
     channels = Channels(config)
     channels.fetch()
 
-    for stream in channels.streams():
-        print(stream)
-
     if unfeched := channels.unfetched():
         sys.exit(f'error: Cannot fetch channel/s: {", ".join(unfeched)}')
 
@@ -277,7 +271,7 @@ if __name__ == '__main__':
         )
     except FileNotFoundError:
         sys.exit('error: Config not found')
-    except yaml.YAMLError as e:
+    except YAMLError as e:
         sys.exit('error: Config syntax: ' + str(e))
     except KeyboardInterrupt:
         print()
