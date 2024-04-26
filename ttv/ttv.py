@@ -42,7 +42,7 @@ class Stream:
 
     def _get_title_without_emojis(self) -> str:
         emojis = re.compile('[\U0001F300-\U0001F9FF]+', flags=re.UNICODE)
-        spaces = re.compile('\s+')
+        spaces = re.compile(r'\s+')
 
         return spaces.sub(' ', emojis.sub('', self.title)).strip()
 
@@ -59,7 +59,7 @@ class Channel:
                 self.fetched = True
 
                 return
-            except (KeyError, requests.RequestException) as e:
+            except (KeyError, requests.RequestException):
                 continue
             except BrokenPipeError:
                 devnull = os.open(os.devnull, os.O_WRONLY)
