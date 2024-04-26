@@ -8,6 +8,7 @@ import json
 import os
 import re
 import requests
+import signal
 import sys
 import threading
 import time
@@ -60,6 +61,10 @@ class Channel:
                 return
             except (KeyError, requests.RequestException) as e:
                 continue
+            except BrokenPipeError:
+                devnull = os.open(os.devnull, os.O_WRONLY)
+                os.dup2(devnull, sys.stdout.fileno())
+                sys.exit(1)
 
 class TT(Channel):
     def __init__(self, id, config):
@@ -110,7 +115,7 @@ class Channels:
                       + [YT(id, config) for id in config['youtube']]
 
     def fetch(self):
-        threads = [threading.Thread(target=c.fetch) for c in self.channels]
+        threads = [threading.Thread(target=c.fetch, daemon=True) for c in self.channels]
 
         for thread in threads:
             thread.start()
@@ -244,6 +249,7 @@ def get_config() -> dict:
         }
 
 async def main(args: ArgumentParser):
+    signal.signal(signal.SIGINT, lambda s, f: sys.exit(1))
     config = get_config()
 
     if args.chat:
