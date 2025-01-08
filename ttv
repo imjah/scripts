@@ -19,26 +19,26 @@ import websockets
 import yaml
 
 class Channel:
-    def __init__(self, id, config):
+    def __init__(self, id, api, config):
         self.id        = id
+        self.instance  = iter(config[api])
         self.timeout   = config['timeout']
         self.separator = config['separator']
 
     def fetch(self):
-        for url in self.urls:
-            try:
-                self._fetch(url)
-                return
-            except KeyError as e:
-                print(f'error: Cannot fetch "{self.id}": {e} not found in response data, using next instance', file=sys.stderr)
-            except RequestException as e:
-                print(f'error: Cannot fetch "{self.id}": {e}, using next instance', file=sys.stderr)
-            except BrokenPipeError:
-                devnull = os.open(os.devnull, os.O_WRONLY)
-                os.dup2(devnull, sys.stdout.fileno())
-                exit()
-
-        print(f'error: Cannot fetch "{self.id}": No instance available', file=sys.stderr)
+        try:
+            self._fetch(next(self.instance))
+        except KeyError as e:
+            print(f'error: Cannot fetch "{self.id}": {e} not found in response data, using next instance', file=sys.stderr)
+        except RequestException as e:
+            print(f'error: Cannot fetch "{self.id}": {e}, using next instance', file=sys.stderr)
+            self.fetch()
+        except StopIteration:
+            print(f'error: Cannot fetch "{self.id}": No instance available', file=sys.stderr)
+        except BrokenPipeError:
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, sys.stdout.fileno())
+            exit()
 
     def _date_to_clock(self, date: str) -> str:
         date = datetime.strptime(date, '%Y-%m-%dT%H:%M:%S%z')
@@ -48,9 +48,7 @@ class Channel:
 
 class TT(Channel):
     def __init__(self, id, config):
-        super().__init__(id, config)
-
-        self.urls = config['safetwitch']
+        super().__init__(id, 'safetwitch', config)
 
     def _fetch(self, url):
         channel = requests.get(f'{url}/api/users/{self.id}', timeout=self.timeout).json()['data']
@@ -69,9 +67,7 @@ class TT(Channel):
 
 class YT(Channel):
     def __init__(self, id, config):
-        super().__init__(id, config)
-
-        self.urls = config['piped']
+        super().__init__(id, 'piped', config)
 
     def _fetch(self, url):
         videos = requests.get(f'{url}/channels/tabs?data={{"id":"{self.id}","contentFilters":["livestreams"]}}', timeout=self.timeout).json()['content']
