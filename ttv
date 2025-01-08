@@ -11,7 +11,7 @@ import sys
 import threading
 import time
 
-from requests import RequestException
+from requests import RequestException, Timeout, HTTPError, TooManyRedirects
 from websockets import InvalidURI, InvalidHandshake, ConnectionClosed
 from yaml import YAMLError
 import requests
@@ -28,13 +28,19 @@ class Channel:
     def fetch(self):
         try:
             self._fetch(next(self.instance))
-        except KeyError as e:
-            print(f'error: Cannot fetch "{self.id}": {e} not found in response data, using next instance', file=sys.stderr)
-        except RequestException as e:
-            print(f'error: Cannot fetch "{self.id}": {e}, using next instance', file=sys.stderr)
+        except KeyError as key:
+            self._error(f'"{key}" not found in response data')
             self.fetch()
+        except JSONDecodeError:
+            self._error('Response data is not a valid JSON')
+            self.fetch()
+        except (HTTPError, TooManyRedirects, Timeout) as e:
+            self._error(e)
+            self.fetch()
+        except RequestException as e:
+            self._error(e, aborted=True)
         except StopIteration:
-            print(f'error: Cannot fetch "{self.id}": No instance available', file=sys.stderr)
+            self._error('No instance available', aborted=True)
         except BrokenPipeError:
             devnull = os.open(os.devnull, os.O_WRONLY)
             os.dup2(devnull, sys.stdout.fileno())
@@ -45,6 +51,9 @@ class Channel:
         diff = datetime.now(date.tzinfo) - date
 
         return time.strftime('%H:%M:%S', time.gmtime(diff.total_seconds()))
+
+    def _error(self, message: str, aborted=False):
+        error(f'error: {self.id}: {message}: {"Aborted" if aborted else "Using next instance"}')
 
 class TT(Channel):
     def __init__(self, id, config):
@@ -158,6 +167,9 @@ def get_config() -> dict:
             },
             **yaml.safe_load(f)
         }
+
+def error(*args, **kwargs):
+    print(*args, **kwargs, file=sys.stderr)
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, lambda s, f: [print(), exit()])
